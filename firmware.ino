@@ -1,3 +1,5 @@
+#include <Bounce2.h>
+
 // forked from https://github.com/ycheng517/ar4_ros_driver/
 
 #include <AccelStepper.h>
@@ -11,7 +13,8 @@ const char *VERSION = "2.0.0";
 const int ESTOP_PIN = 39;
 const int STEP_PINS[] = {0, 2, 4, 6, 8, 10};
 const int DIR_PINS[] = {1, 3, 5, 7, 9, 11};
-const int LIMIT_PINS[] = {26, 27, 28, 29, 30, 31};
+const int LIMIT_PINS[] = {26, 27, 28};
+const int INDEX_PINS[] = {29, 30, 31};
 
 const float MOTOR_STEPS_PER_DEG[] = {44.44444444, 55.55555556, 55.55555556,
                                      49.77777777, 21.86024888, 22.22222222};
@@ -32,8 +35,16 @@ enum State { STATE_TRAJ, STATE_ERR };
 State STATE = STATE_TRAJ;
 
 const int NUM_JOINTS = 6;
+const int SWITCH_PINS[NUM_JOINTS] = {
+  LIMIT_PINS[0], LIMIT_PINS[1], LIMIT_PINS[2],
+  INDEX_PINS[0], INDEX_PINS[1], INDEX_PINS[2]
+};
+const int SWITCH_MODES[NUM_JOINTS] = {
+  INPUT,        INPUT,        INPUT,
+  INPUT_PULLUP, INPUT_PULLUP, INPUT_PULLUP
+};
 AccelStepper stepperJoints[NUM_JOINTS];
-Bounce2::Button limitSwitches[NUM_JOINTS];
+Bounce2::Button limitSwitches[3];
 const int DEBOUNCE_INTERVAL = 10;
 
 // calibration & motion params
@@ -134,18 +145,41 @@ void ParseMessage(String &inData, double *cmdJointPos) {
   }
 }
 
+void checkLimitSwitchEvents() {
+  // Make sure you've already called limitSwitches[i].update() somewhere
+  for (int i = 0; i < NUM_JOINTS; ++i) {
+    // .fell() goes from “not pressed” → “pressed”
+    if (limitSwitches[i].fell()) {
+      Serial.print("⚠️  Joint ");
+      Serial.print(JOINT_NAMES[i]);
+      Serial.println(" limit switch ACTIVATED");
+    }
+    // .rose() goes from “pressed” → “released”
+    if (limitSwitches[i].rose()) {
+      Serial.print("✅  Joint ");
+      Serial.print(JOINT_NAMES[i]);
+      Serial.println(" limit switch RELEASED");
+    }
+  }
+}
+
 void setup() {
   for (int i = 0; i < NUM_JOINTS; ++i) {
     pinMode(STEP_PINS[i], OUTPUT);
     pinMode(DIR_PINS[i], OUTPUT);
-    pinMode(LIMIT_PINS[i], INPUT);
   }
 
-  for (int i = 0; i < NUM_JOINTS; ++i) {
-    limitSwitches[i] = Bounce2::Button();
-    limitSwitches[i].attach(LIMIT_PINS[i], INPUT);
+  for (int i = 0; i < 3; ++i) {
+    pinMode( SWITCH_PINS[i],
+             SWITCH_MODES[i] );
+    limitSwitches[i].attach(
+      SWITCH_PINS[i],
+      SWITCH_MODES[i]
+    );
     limitSwitches[i].interval(DEBOUNCE_INTERVAL);
-    limitSwitches[i].setPressedState(LIMIT_SWITCH_HIGH[i]);
+    limitSwitches[i].setPressedState(
+      LIMIT_SWITCH_HIGH[i]
+    );
   }
 
   pinMode(ESTOP_PIN, INPUT_PULLUP);
@@ -268,6 +302,8 @@ void updateAllLimitSwitches() {
   for (int i = 0; i < NUM_JOINTS; ++i) {
     limitSwitches[i].update();
   }
+
+  checkLimitSwitchEvents();
 }
 
 // calibration routines
