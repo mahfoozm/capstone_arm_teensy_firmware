@@ -146,15 +146,12 @@ void ParseMessage(String &inData, double *cmdJointPos) {
 }
 
 void checkLimitSwitchEvents() {
-  // Make sure you've already called limitSwitches[i].update() somewhere
   for (int i = 0; i < NUM_JOINTS; ++i) {
-    // .fell() goes from “not pressed” → “pressed”
     if (limitSwitches[i].fell()) {
       Serial.print("⚠️  Joint ");
       Serial.print(JOINT_NAMES[i]);
       Serial.println(" limit switch ACTIVATED");
     }
-    // .rose() goes from “pressed” → “released”
     if (limitSwitches[i].rose()) {
       Serial.print("✅  Joint ");
       Serial.print(JOINT_NAMES[i]);
